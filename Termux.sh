@@ -28,17 +28,20 @@ fi
 # ===== LOGIN =====
 login() {
   tentativas=3
+
   while [ $tentativas -gt 0 ]; do
     clear
-    echo "======== LOGIN ========"
+    echo "==== PASSADOR DE REPLAY FUSION ===="
+    echo ""
 
     read -p "Digite o código: " pin
 
+    # DONO
     if [ "$pin" = "$OWNER_PIN" ]; then
-      sleep 1
       return
     fi
 
+    # PINS 15 DIAS
     for p in "${VALID_PINS[@]}"; do
       if [ "$pin" = "$p" ]; then
 
@@ -49,13 +52,11 @@ login() {
         NOW=$(date +%s)
         echo "$pin:$DEVICE_ID:$NOW" >> "$USED_PINS"
 
-        sleep 1
         return
       fi
     done
 
     tentativas=$((tentativas - 1))
-    sleep 1
   done
 
   echo "$DEVICE_ID" > "$BLOCK_FILE"
@@ -65,6 +66,7 @@ login() {
 # ===== EXPIRAÇÃO =====
 check_expiration() {
   [ ! -f "$USED_PINS" ] && return
+
   NOW=$(date +%s)
 
   while IFS=: read -r pin id data; do
@@ -73,15 +75,6 @@ check_expiration() {
       [ "$DIAS" -ge 15 ] && exit 1
     fi
   done < "$USED_PINS"
-}
-
-# ===== VISUAL =====
-loading() {
-  for i in {1..5}; do sleep 0.2; done
-}
-
-bar() {
-  for i in {1..20}; do sleep 0.02; done
 }
 
 # ===== ADB =====
@@ -96,6 +89,7 @@ DST="/sdcard/Android/data/com.dts.freefireth/files/MReplays"
 copy_local() {
 (
   mkdir -p "$DST"
+
   BIN=$(ls -t "$SRC"/*.bin 2>/dev/null | head -1)
   JSON=$(ls -t "$SRC"/*.json 2>/dev/null | head -1)
 
@@ -103,8 +97,6 @@ copy_local() {
   [ -n "$JSON" ] && cp -f "$JSON" "$DST"/
 
   [ -n "$JSON" ] && sed -i 's/"[Vv]ersion":"[^"]*"/"Version":"1.123.1"/' "$DST/$(basename "$JSON")"
-  loading
-  bar
 ) > /dev/null 2>&1
 }
 
@@ -118,8 +110,6 @@ send_usb() {
 
   [ -n "$BIN" ] && adb push "$BIN" "$DST"/
   [ -n "$JSON" ] && adb push "$JSON" "$DST"/
-  loading
-  bar
 ) > /dev/null 2>&1
 }
 
@@ -131,17 +121,20 @@ wifi() {
 ) > /dev/null 2>&1
 }
 
+# ===== MENU =====
 menu() {
   clear
-  echo "===== FUSION ====="
+  echo "===== PASSADOR DE REPLAY FUSION ====="
+  echo ""
   echo "1 - Passar replay para FF normal"
   echo "2 - Passador para outro dispositivo"
   echo "3 - Conectar depuração wi-fi"
   echo "0 - Sair"
+  echo ""
   read -p "> " op
 }
 
-# ===== RUN =====
+# ===== EXECUÇÃO =====
 login
 check_expiration
 
