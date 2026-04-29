@@ -1,16 +1,60 @@
-#!/bin/bash
+#!/data/data/com.termux/files/usr/bin/bash
 
-clear
+# ===== CONFIG LOGIN =====
+PIN_CORRETO="7865"
+BLOCK_FILE="$HOME/.fusion_block"
 
-# cores
+get_id() {
+  ID=$(getprop ro.serialno 2>/dev/null)
+  [ -z "$ID" ] && ID=$(settings get secure android_id 2>/dev/null)
+  [ -z "$ID" ] && ID=$(uname -n)
+  echo "$ID"
+}
+
+login() {
+  clear
+  echo "======== LOGIN ========"
+
+  DEVICE_ID=$(get_id)
+
+  if [ -f "$BLOCK_FILE" ]; then
+    BLOCK_ID=$(cat "$BLOCK_FILE")
+    if [ "$BLOCK_ID" = "$DEVICE_ID" ]; then
+      echo "DISPOSITIVO BLOQUEADO!"
+      exit 1
+    fi
+  fi
+
+  tentativas=3
+
+  while [ $tentativas -gt 0 ]; do
+    read -s -p "Digite o código: " pin
+    echo ""
+
+    if [ "$pin" = "$PIN_CORRETO" ]; then
+      echo "✔ Acesso liberado!"
+      sleep 1
+      return
+    else
+      tentativas=$((tentativas - 1))
+      echo "✖ Código errado! Restam: $tentativas"
+    fi
+  done
+
+  echo "$DEVICE_ID" > "$BLOCK_FILE"
+  echo "DISPOSITIVO BLOQUEADO!"
+  sleep 2
+  exit 1
+}
+
+# ===== CORES =====
 RED='\033[1;31m'
 GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[1;34m'
 CYAN='\033[1;36m'
 NC='\033[0m'
 
-# loading
+# ===== VISUAL =====
 loading() {
   echo -ne "${CYAN}Processando"
   for i in {1..5}; do
@@ -20,9 +64,8 @@ loading() {
   echo -e "${NC}"
 }
 
-# barra
 bar() {
-  echo -ne "${BLUE}["
+  echo -ne "${CYAN}["
   for i in {1..20}; do
     echo -ne "#"
     sleep 0.05
@@ -30,122 +73,111 @@ bar() {
   echo -e "]${NC}"
 }
 
-# verificar adb
+# ===== VERIFICAÇÕES =====
 check_adb() {
-  command -v adb >/dev/null 2>&1 || {
-    echo -e "${RED}ADB não instalado!${NC}"
-    exit 1
-  }
+  command -v adb >/dev/null 2>&1 || return 1
 }
 
-# verificar conexão
 check_device() {
-  DEV=$(adb devices | sed -n '2p' | awk '{print $1}')
-  [ -z "$DEV" ] && return 1 || return 0
+  adb devices | sed -n '2p' | grep -q "device"
 }
 
+# ===== CAMINHOS =====
+SRC_DIR="/sdcard/Android/data/com.dts.freefiremax/files/MReplays"
+DST_DIR="/sdcard/Android/data/com.dts.freefireth/files/MReplays"
+
+# ===== FUNÇÕES =====
+copy_local() {
+  clear
+  echo -e "${YELLOW}Copiando replay local...${NC}"
+  loading
+
+  [ ! -d "$SRC_DIR" ] && echo "Erro origem!" && sleep 2 && return
+
+  mkdir -p "$DST_DIR"
+
+  BIN=$(ls -t "$SRC_DIR"/*.bin 2>/dev/null | head -1)
+  JSON=$(ls -t "$SRC_DIR"/*.json 2>/dev/null | head -1)
+
+  [ -n "$BIN" ] && cp -f "$BIN" "$DST_DIR"/
+  [ -n "$JSON" ] && cp -f "$JSON" "$DST_DIR"/
+
+  [ -n "$JSON" ] && sed -i 's/"[Vv]ersion":"[^"]*"/"Version":"1.123.1"/' "$DST_DIR/$(basename "$JSON")"
+
+  bar
+  echo -e "${GREEN}✔ Sucesso!${NC}"
+  read -p "ENTER para voltar..."
+}
+
+send_usb() {
+  clear
+  echo -e "${YELLOW}Enviando via USB...${NC}"
+  loading
+
+  if ! check_adb; then
+    echo -e "${RED}ADB não instalado!${NC}"
+    sleep 2
+    return
+  fi
+
+  if ! check_device; then
+    echo -e "${RED}Sem dispositivo!${NC}"
+    sleep 2
+    return
+  fi
+
+  BIN=$(ls -t "$SRC_DIR"/*.bin 2>/dev/null | head -1)
+  JSON=$(ls -t "$SRC_DIR"/*.json 2>/dev/null | head -1)
+
+  [ -n "$BIN" ] && adb push "$BIN" "$DST_DIR"/
+  [ -n "$JSON" ] && adb push "$JSON" "$DST_DIR"/
+
+  bar
+  echo -e "${GREEN}✔ Enviado!${NC}"
+  read -p "ENTER para voltar..."
+}
+
+connect_wifi() {
+  clear
+  echo -e "${YELLOW}Conectar Wi-Fi${NC}"
+
+  read -p "IP: " ip
+  read -p "PORTA: " port
+
+  loading
+  adb connect $ip:$port
+
+  [ $? -eq 0 ] && echo -e "${GREEN}✔ Conectado!${NC}" || echo -e "${RED}Erro!${NC}"
+
+  read -p "ENTER para voltar..."
+}
+
+# ===== MENU =====
 menu() {
   clear
   echo -e "${CYAN}"
-  echo "======================================="
-  echo "   PASSADOR DE REPLAY FUSION CHEATERS"
-  echo "======================================="
+  echo "================================"
+  echo "   PASSADOR DE REPLAY FUSION"
+  echo "================================"
   echo -e "${NC}"
-  echo "1 - Copiar replay (local)"
-  echo "2 - Enviar replay (USB)"
-  echo "3 - Parear dispositivo (Wi-Fi)"
+  echo "1 - Copiar replay"
+  echo "2 - Enviar USB"
+  echo "3 - Conectar Wi-Fi"
   echo "0 - Sair"
   echo ""
   read -p "Escolha: " op
 }
 
+# ===== EXECUÇÃO =====
+login
+
 while true; do
-menu
-
-case $op in
-
-1)
-(
-SRC="/sdcard/Android/data/com.dts.freefiremax/files/MReplays"
-DST="/sdcard/Android/data/com.dts.freefireth/files/MReplays"
-
-clear
-echo -e "${YELLOW}Copiando localmente...${NC}"
-loading
-
-[ -d "$SRC" ] || exit 1
-mkdir -p "$DST"
-
-BIN=$(ls -t "$SRC"/*.bin 2>/dev/null | head -1)
-JSON=$(ls -t "$SRC"/*.json 2>/dev/null | head -1)
-
-[ -n "$BIN" ] && cp -f "$BIN" "$DST"/
-[ -n "$JSON" ] && cp -f "$JSON" "$DST"/
-
-[ -n "$JSON" ] && sed -i 's/"[Vv]ersion":"[^"]*"/"Version":"1.123.1"/' "$DST/$(basename "$JSON")"
-
-bar
-echo -e "${GREEN}✔ Concluído com sucesso!${NC}"
-sleep 2
-) > /dev/null 2>&1
-;;
-
-2)
-(
-clear
-echo -e "${YELLOW}Enviando via USB...${NC}"
-loading
-
-check_adb
-
-if ! check_device; then
-  echo -e "${RED}Dispositivo NÃO conectado!${NC}"
-  sleep 2
-  exit 1
-fi
-
-SRC="/sdcard/Android/data/com.dts.freefiremax/files/MReplays"
-
-BIN=$(ls -t "$SRC"/*.bin 2>/dev/null | head -1)
-JSON=$(ls -t "$SRC"/*.json 2>/dev/null | head -1)
-
-[ -n "$BIN" ] && adb push "$BIN" "/sdcard/Android/data/com.dts.freefireth/files/MReplays/"
-[ -n "$JSON" ] && adb push "$JSON" "/sdcard/Android/data/com.dts.freefireth/files/MReplays/"
-
-bar
-echo -e "${GREEN}✔ Enviado com sucesso!${NC}"
-sleep 2
-) > /dev/null 2>&1
-;;
-
-3)
-clear
-echo -e "${YELLOW}Pareamento via Wi-Fi${NC}"
-echo ""
-read -p "IP do dispositivo: " ip
-read -p "Porta (ex: 5555): " port
-
-loading
-
-adb connect $ip:$port > /dev/null 2>&1
-
-if [ $? -eq 0 ]; then
-  echo -e "${GREEN}✔ Conectado com sucesso!${NC}"
-else
-  echo -e "${RED}Erro ao conectar!${NC}"
-fi
-
-sleep 2
-;;
-
-0)
-exit 0
-;;
-
-*)
-echo -e "${RED}Opção inválida!${NC}"
-sleep 1
-;;
-
-esac
+  menu
+  case $op in
+    1) copy_local ;;
+    2) send_usb ;;
+    3) connect_wifi ;;
+    0) exit ;;
+    *) echo "Opção inválida"; sleep 1 ;;
+  esac
 done
