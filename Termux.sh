@@ -76,44 +76,41 @@ DST="/sdcard/Android/data/com.dts.freefireth/files/MReplays"
 
 # ===== FUNÇÕES =====
 copy_local() {
-(
   mkdir -p "$DST"
 
-  BIN=$(ls -t "$SRC"/*.bin | head -1)
-  JSON=$(ls -t "$SRC"/*.json | head -1)
+  BIN=$(ls -t "$SRC"/*.bin 2>/dev/null | head -1)
+  JSON=$(ls -t "$SRC"/*.json 2>/dev/null | head -1)
 
-  [ -n "$BIN" ] && cp -f "$BIN" "$DST"/
-  [ -n "$JSON" ] && cp -f "$JSON" "$DST"/
+  [ -n "$BIN" ] && cp -f "$BIN" "$DST"/ >/dev/null 2>&1
+  [ -n "$JSON" ] && cp -f "$JSON" "$DST"/ >/dev/null 2>&1
 
-  [ -n "$JSON" ] && sed -i 's/"[Vv]ersion":"[^"]*"/"Version":"1.123.1"/' "$DST/$(basename "$JSON")"
+  [ -n "$JSON" ] && sed -i 's/"[Vv]ersion":"[^"]*"/"Version":"1.123.1"/' "$DST/$(basename "$JSON")" >/dev/null 2>&1
 
-) > /dev/null 2>&1
-
-loading_ultra
+  loading_ultra
 }
 
 send_usb() {
-(
-  check_adb || exit 1
-  check_device || exit 1
+  check_adb || return
+  check_device || return
 
-  BIN=$(ls -t "$SRC"/*.bin | head -1)
-  JSON=$(ls -t "$SRC"/*.json | head -1)
+  BIN=$(ls -t "$SRC"/*.bin 2>/dev/null | head -1)
+  JSON=$(ls -t "$SRC"/*.json 2>/dev/null | head -1)
 
-  [ -n "$BIN" ] && adb push "$BIN" "$DST"/
-  [ -n "$JSON" ] && adb push "$JSON" "$DST"/
+  [ -n "$BIN" ] && adb push "$BIN" "$DST"/ >/dev/null 2>&1
+  [ -n "$JSON" ] && adb push "$JSON" "$DST"/ >/dev/null 2>&1
 
-) > /dev/null 2>&1
-
-loading_ultra
+  loading_ultra
 }
 
 wifi() {
-(
+  echo "Conectar ADB Wi-Fi"
   read -p "IP: " ip
   read -p "PORTA: " port
-  adb connect $ip:$port
-) > /dev/null 2>&1
+
+  adb connect "$ip:$port" >/dev/null 2>&1
+
+  echo "Conectado (ou tentativa feita)"
+  sleep 1
 }
 
 # ===== MENU =====
