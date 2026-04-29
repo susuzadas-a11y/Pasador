@@ -10,6 +10,55 @@ VALID_PINS=(
 "02773" "2937" "15838" "205273" "2862" "7262" "62835"
 )
 
+# ===== CORES =====
+PURPLE='\033[1;35m'
+LIGHT='\033[0;35m'
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# ===== BANNER =====
+banner() {
+clear
+echo -e "${PURPLE}"
+echo "╔══════════════════════════════════════╗"
+echo "║     PASSADOR DE REPLAY FUSION        ║"
+echo "╠══════════════════════════════════════╣"
+echo "║        SISTEMA PREMIUM TERMUX        ║"
+echo "╚══════════════════════════════════════╝"
+echo -e "${NC}"
+}
+
+# ===== LOADING ULTRA =====
+loading_ultra() {
+  for ((i=0;i<=100;i++)); do
+    done=$((i/2))
+    left=$((50-done))
+
+    bar_done=$(printf "%0.s#" $(seq 1 $done))
+    bar_left=$(printf "%0.s " $(seq 1 $left))
+
+    if (( i % 2 == 0 )); then
+      color="\033[1;35m"
+    else
+      color="\033[0;35m"
+    fi
+
+    if [ $i -lt 30 ]; then
+      msg="Iniciando sistema..."
+    elif [ $i -lt 60 ]; then
+      msg="Carregando módulos..."
+    elif [ $i -lt 90 ]; then
+      msg="Processando dados..."
+    else
+      msg="Finalizando..."
+    fi
+
+    printf "\r${color}[%s%s] %d%% | %s\033[0m" "$bar_done" "$bar_left" "$i" "$msg"
+    sleep 0.02
+  done
+  echo ""
+}
+
 # ===== ID =====
 get_id() {
   ID=$(getprop ro.serialno 2>/dev/null)
@@ -30,11 +79,9 @@ login() {
   tentativas=3
 
   while [ $tentativas -gt 0 ]; do
-    clear
-    echo "==== PASSADOR DE REPLAY FUSION ===="
-    echo ""
-
-    read -p "Digite o código: " pin
+    banner
+    echo -e "${WHITE}Digite o código:${NC}"
+    read pin
 
     # DONO
     if [ "$pin" = "$OWNER_PIN" ]; then
@@ -51,7 +98,6 @@ login() {
 
         NOW=$(date +%s)
         echo "$pin:$DEVICE_ID:$NOW" >> "$USED_PINS"
-
         return
       fi
     done
@@ -66,7 +112,6 @@ login() {
 # ===== EXPIRAÇÃO =====
 check_expiration() {
   [ ! -f "$USED_PINS" ] && return
-
   NOW=$(date +%s)
 
   while IFS=: read -r pin id data; do
@@ -97,7 +142,10 @@ copy_local() {
   [ -n "$JSON" ] && cp -f "$JSON" "$DST"/
 
   [ -n "$JSON" ] && sed -i 's/"[Vv]ersion":"[^"]*"/"Version":"1.123.1"/' "$DST/$(basename "$JSON")"
+
 ) > /dev/null 2>&1
+
+loading_ultra
 }
 
 send_usb() {
@@ -110,7 +158,10 @@ send_usb() {
 
   [ -n "$BIN" ] && adb push "$BIN" "$DST"/
   [ -n "$JSON" ] && adb push "$JSON" "$DST"/
+
 ) > /dev/null 2>&1
+
+loading_ultra
 }
 
 wifi() {
@@ -123,15 +174,13 @@ wifi() {
 
 # ===== MENU =====
 menu() {
-  clear
-  echo "===== PASSADOR DE REPLAY FUSION ====="
+  banner
+  echo -e "${LIGHT}1 - Passar replay para FF normal${NC}"
+  echo -e "${LIGHT}2 - Passador para outro dispositivo${NC}"
+  echo -e "${LIGHT}3 - Conectar depuração Wi-Fi${NC}"
+  echo -e "${LIGHT}0 - Sair${NC}"
   echo ""
-  echo "1 - Passar replay para FF normal"
-  echo "2 - Passador para outro dispositivo"
-  echo "3 - Conectar depuração wi-fi"
-  echo "0 - Sair"
-  echo ""
-  read -p "> " op
+  read -p "Escolha: " op
 }
 
 # ===== EXECUÇÃO =====
