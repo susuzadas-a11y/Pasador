@@ -1,10 +1,10 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# ===== SILENCIAR ERROS =====
 exec 2>/dev/null
 
 # ===== CONFIG =====
 OWNER_PIN="7865"
+ADB_CFG="$HOME/.adb_wifi"
 
 VALID_PINS=(
 "01" "2002" "9321" "3469" "9397" "2773" "83872"
@@ -12,128 +12,198 @@ VALID_PINS=(
 )
 
 # ===== CORES =====
-PURPLE='\033[1;35m'
-LIGHT='\033[0;35m'
-WHITE='\033[1;37m'
-RED='\033[1;31m'
-NC='\033[0m'
+P='\033[1;35m'
+L='\033[0;35m'
+W='\033[1;37m'
+R='\033[1;31m'
+G='\033[1;32m'
+N='\033[0m'
 
-# ===== BANNER =====
-banner() {
+# ===== UI =====
+banner(){
 clear
-echo -e "${PURPLE}"
+echo -e "${P}"
 echo "╔══════════════════════════════════════╗"
-echo "║     PASSADOR DE REPLAY FUSION        ║"
+echo "║         FUSION ULTRA SYSTEM          ║"
 echo "╠══════════════════════════════════════╣"
-echo "║        SISTEMA PREMIUM TERMUX        ║"
+echo "║           AUTO MODE ACTIVE           ║"
 echo "╚══════════════════════════════════════╝"
-echo -e "${NC}"
+echo -e "${N}"
 }
 
-# ===== LOADING =====
-loading_ultra() {
+loading(){
 for ((i=0;i<=100;i++)); do
-  printf "\r${PURPLE}Carregando... %d%%%s" "$i" "${NC}"
-  sleep 0.01
+printf "\r${P}Loading %d%%%s" "$i" "$N"
+sleep 0.008
 done
 echo ""
 }
 
+pause(){
+echo ""
+read -p "ENTER..." _
+}
+
 # ===== LOGIN =====
-login() {
-tentativas=3
+login(){
+t=3
+while [ $t -gt 0 ]; do
+banner
+echo -e "${W}Código:${N}"
+read pin
 
-while [ $tentativas -gt 0 ]; do
-  banner
-  echo -e "${WHITE}Digite o código:${NC}"
-  read pin
+[ "$pin" = "$OWNER_PIN" ] && return
 
-  if [ "$pin" = "$OWNER_PIN" ]; then
-    return
-  fi
-
-  for p in "${VALID_PINS[@]}"; do
-    if [ "$pin" = "$p" ]; then
-      return
-    fi
-  done
-
-  tentativas=$((tentativas - 1))
-  echo -e "${RED}PIN inválido! Tentativas: $tentativas${NC}"
-  sleep 1
+for p in "${VALID_PINS[@]}"; do
+[ "$pin" = "$p" ] && return
 done
 
-exit 1
+t=$((t-1))
+echo -e "${R}Inválido ($t)${N}"
+sleep 1
+done
+exit
 }
 
-# ===== ADB =====
-check_adb() { command -v adb >/dev/null 2>&1; }
-check_device() { adb devices | sed -n '2p' | grep -q "device"; }
+# ===== WIFI CORE =====
+connect_saved(){
+[ ! -f "$ADB_CFG" ] && return 1
+CFG=$(cat "$ADB_CFG")
 
-# ===== PATHS =====
-SRC="/sdcard/Android/data/com.dts.freefiremax/files/MReplays"
-DST="/sdcard/Android/data/com.dts.freefireth/files/MReplays"
-
-# ===== FUNÇÕES =====
-copy_local() {
-  mkdir -p "$DST"
-
-  BIN=$(ls -t "$SRC"/*.bin 2>/dev/null | head -1)
-  JSON=$(ls -t "$SRC"/*.json 2>/dev/null | head -1)
-
-  [ -n "$BIN" ] && cp -f "$BIN" "$DST"/ >/dev/null 2>&1
-  [ -n "$JSON" ] && cp -f "$JSON" "$DST"/ >/dev/null 2>&1
-
-  [ -n "$JSON" ] && sed -i 's/"[Vv]ersion":"[^"]*"/"Version":"1.123.1"/' "$DST/$(basename "$JSON")" >/dev/null 2>&1
-
-  loading_ultra
+adb connect "$CFG" >/dev/null 2>&1
+adb devices | grep -q "$CFG"
 }
 
-send_usb() {
-  check_adb || return
-  check_device || return
+connect_manual(){
+banner
+echo "1 - Conectar manual"
+echo "0 - Voltar"
+read -p "Escolha: " op
 
-  BIN=$(ls -t "$SRC"/*.bin 2>/dev/null | head -1)
-  JSON=$(ls -t "$SRC"/*.json 2>/dev/null | head -1)
-
-  [ -n "$BIN" ] && adb push "$BIN" "$DST"/ >/dev/null 2>&1
-  [ -n "$JSON" ] && adb push "$JSON" "$DST"/ >/dev/null 2>&1
-
-  loading_ultra
-}
-
-wifi() {
-  echo "Conectar ADB Wi-Fi"
+case "$op" in
+1)
   read -p "IP: " ip
   read -p "PORTA: " port
 
-  adb connect "$ip:$port" >/dev/null 2>&1
+  TARGET="$ip:$port"
+  echo "Conectando..."
+  adb connect "$TARGET" >/dev/null 2>&1
 
-  echo "Conectado (ou tentativa feita)"
-  sleep 1
+  if adb devices | grep -q "$TARGET"; then
+    echo "$TARGET" > "$ADB_CFG"
+    echo -e "${G}✔ Conectado${N}"
+  else
+    echo -e "${R}✖ Falha${N}"
+  fi
+  pause
+;;
+esac
+}
+
+wifi_menu(){
+while true; do
+banner
+echo "1 - Conectar manual"
+echo "2 - Testar conexão"
+echo "3 - Limpar conexão salva"
+echo "0 - Voltar"
+echo ""
+
+read -p "Escolha: " op
+
+case "$op" in
+1) connect_manual ;;
+2)
+  if connect_saved; then
+    echo -e "${G}✔ Conectado${N}"
+  else
+    echo -e "${R}✖ Não conectado${N}"
+  fi
+  pause
+;;
+3)
+  rm -f "$ADB_CFG"
+  echo "Config apagada"
+  pause
+;;
+0) break ;;
+esac
+
+done
+}
+
+# ===== ADB =====
+check_adb(){ command -v adb >/dev/null 2>&1; }
+check_device(){ adb devices | grep -q "device"; }
+
+# ===== PATH =====
+SRC="/sdcard/Android/data/com.dts.freefiremax/files/MReplays"
+DST="/sdcard/Android/data/com.dts.freefireth/files/MReplays"
+
+# ===== CORE =====
+copy_local(){
+mkdir -p "$DST"
+
+BIN=$(ls -t "$SRC"/*.bin 2>/dev/null | head -1)
+JSON=$(ls -t "$SRC"/*.json 2>/dev/null | head -1)
+
+[ -n "$BIN" ] && cp -f "$BIN" "$DST"/ >/dev/null 2>&1
+[ -n "$JSON" ] && cp -f "$JSON" "$DST"/ >/dev/null 2>&1
+
+loading
+}
+
+send_usb(){
+check_adb || return
+check_device || return
+
+BIN=$(ls -t "$SRC"/*.bin 2>/dev/null | head -1)
+JSON=$(ls -t "$SRC"/*.json 2>/dev/null | head -1)
+
+[ -n "$BIN" ] && adb push "$BIN" "$DST"/ >/dev/null 2>&1
+[ -n "$JSON" ] && adb push "$JSON" "$DST"/ >/dev/null 2>&1
+
+loading
+}
+
+# ===== AUTO START =====
+auto_connect(){
+connect_saved && return
 }
 
 # ===== MENU =====
-menu() {
-  banner
-  echo -e "${LIGHT}1 - Passar replay para FF normal${NC}"
-  echo -e "${LIGHT}2 - Passador para outro dispositivo${NC}"
-  echo -e "${LIGHT}3 - Conectar depuração Wi-Fi${NC}"
-  echo -e "${LIGHT}0 - Sair${NC}"
-  echo ""
-  read -p "Escolha: " op
+menu(){
+while true; do
+banner
+
+echo -e "${W}STATUS:${N}"
+if connect_saved; then
+echo -e "${G}ADB CONECTADO${N}"
+else
+echo -e "${R}SEM CONEXÃO${N}"
+fi
+
+echo ""
+echo "1 - Passar replay local"
+echo "2 - Enviar para dispositivo"
+echo "3 - Wi-Fi / Conexão"
+echo "0 - Sair"
+echo ""
+
+read -p "Escolha: " op
+
+case "$op" in
+1) copy_local ;;
+2) send_usb ;;
+3) wifi_menu ;;
+0) exit ;;
+*) echo "Inválido"; sleep 1 ;;
+esac
+
+done
 }
 
-# ===== EXECUÇÃO =====
+# ===== EXEC =====
 login
-
-while true; do
-  menu
-  case $op in
-    1) copy_local ;;
-    2) send_usb ;;
-    3) wifi ;;
-    0) exit ;;
-    *) echo "Opção inválida"; sleep 1 ;;
-  esac
-done
+auto_connect
+menu
